@@ -68,9 +68,13 @@ def setup_application():
 
 # Initialize session state variables
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+    st.session_state.messages = [
+        {"role": "assistant", "content": "Hello! Upload your documents and I'll be ready to answer your questions."}
+    ]
 if "processed_docs" not in st.session_state:
     st.session_state.processed_docs = []
+if "latest_sources" not in st.session_state:
+    st.session_state.latest_sources = []
 
 # Setup the application and get the main components
 vector_store_manager, rag_engine = setup_application()
@@ -82,15 +86,21 @@ st.session_state.processed_docs = vector_store_manager.get_processed_documents()
 # --- HELPER FUNCTIONS ---
 
 def display_chat_history():
-    """Displays the chat history."""
+    """Displays the chat history without the source expanders."""
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-            if "sources" in message and message["sources"]:
-                with st.expander("View Sources"):
-                    for source in message["sources"]:
-                        st.info(f"**Source:** {source['source']} (Chunk {source['chunk_id']})")
-                        st.code(source['content'])
+
+def display_sources(sources_list):
+    """Renders the source documents in the dedicated sources column."""
+    with sources_placeholder.container():
+        if not sources_list:
+            st.info("Source documents will appear here when you ask a question.")
+        else:
+            st.subheader("Source Documents")
+            for source in sources_list:
+                with st.expander(f"Source: {source['source']} (Chunk {source['chunk_id']})"):
+                    st.markdown(source['content'])
 
 def handle_document_processing(uploaded_files):
     """Processes uploaded documents and adds them to the vector store."""
@@ -160,32 +170,41 @@ with st.sidebar:
     if st.button("Clear All Data", use_container_width=True, type="primary"):
         clear_all_data()
 
-# --- MAIN CHAT UI ---
+# --- MAIN UI LAYOUT ---
+chat_col, sources_col = st.columns([0.65, 0.35])
 
-display_chat_history()
+with sources_col:
+    st.header("Sources")
+    sources_placeholder = st.container()
+    # Display sources from the latest query
+    display_sources(st.session_state.latest_sources)
 
-if prompt := st.chat_input("Ask a question about your documents..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+with chat_col:
+    # --- MAIN CHAT UI ---
+    display_chat_history()
 
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            response = rag_engine.query(prompt)
-            answer = response["answer"]
-            sources = response["sources"]
+    if prompt := st.chat_input("Ask a question about your documents..."):
+        # Add user message to history and display it
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-            st.markdown(answer)
+        # Get and display assistant's response
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                # Pass the previous messages for context, but not the current prompt
+                chat_history = st.session_state.messages[:-1]
+                response = rag_engine.query(prompt, chat_history)
+                answer = response["answer"]
+                st.session_state.latest_sources = response["sources"]
 
-            if sources:
-                with st.expander("View Sources"):
-                    for source in sources:
-                        st.info(f"**Source:** {source['source']} (Chunk {source['chunk_id']})")
-                        st.code(source['content'])
+                st.markdown(answer)
 
-            # Add assistant response to history
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": answer,
-                "sources": sources
-            })
+        # Add assistant's response to history (without sources)
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": answer
+        })
+
+        # Rerun to update the sources column
+        st.rerun()

@@ -1,0 +1,22 @@
+# Git files
+.git
+.gitignore
+.dockerignore
+
+# Environment variables
+.env
+
+# Python cache and virtual environment
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Test artifacts
+tests/
+pytest.ini
+
+# Local data
+data/
+test_document.pdf
+test_document.docx

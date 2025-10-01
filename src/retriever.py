@@ -1,17 +1,17 @@
 """
-The RAG engine that orchestrates the retrieval and generation process.
+The RAG engine that orchestrates the retrieval and generation process with conversational memory.
 """
 
-from typing import Dict
-from langchain.chains import RetrievalQA
-from langchain.prompts import PromptTemplate
+from typing import Dict, List
+from langchain.chains import ConversationalRetrievalChain
 from langchain.schema.vectorstore import VectorStoreRetriever
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import HumanMessage, AIMessage
 
 
 class RAGEngine:
     """
-    The main engine for handling RAG-based queries.
+    The main engine for handling conversational RAG queries.
     It is initialized with a retriever and a language model.
     """
 
@@ -25,42 +25,20 @@ class RAGEngine:
         """
         self.retriever = retriever
         self.llm = llm
-        self.qa_chain = self._create_qa_chain()
-
-    def _create_qa_chain(self) -> RetrievalQA:
-        """
-        Creates the full question-answering chain.
-        """
-        prompt_template = """
-        Use the following pieces of context to answer the question at the end.
-        If you don't know the answer, just say that you don't know, don't try to make up an answer.
-        Provide the answer and then list the sources used with their chunk ID.
-
-        Context:
-        {context}
-
-        Question: {question}
-
-        Helpful Answer:
-        """
-        QA_PROMPT = PromptTemplate(
-            template=prompt_template, input_variables=["context", "question"]
-        )
-
-        return RetrievalQA.from_chain_type(
+        self.qa_chain = ConversationalRetrievalChain.from_llm(
             llm=self.llm,
-            chain_type="stuff",
             retriever=self.retriever,
             return_source_documents=True,
-            chain_type_kwargs={"prompt": QA_PROMPT},
+            # We can add a custom prompt for the document combination part if needed
         )
 
-    def query(self, question: str) -> Dict:
+    def query(self, question: str, chat_history: List[Dict]) -> Dict:
         """
-        Queries the RAG pipeline.
+        Queries the conversational RAG pipeline.
 
         Args:
             question: The user's question.
+            chat_history: The history of the conversation.
 
         Returns:
             A dictionary containing the answer and a list of source documents.
@@ -68,10 +46,22 @@ class RAGEngine:
         if not question:
             return {"answer": "Please ask a question.", "sources": []}
 
-        try:
-            result = self.qa_chain.invoke({"query": question})
+        # Format chat history from Streamlit's format to LangChain's format
+        formatted_history = []
+        for message in chat_history:
+            if message["role"] == "user":
+                formatted_history.append(HumanMessage(content=message["content"]))
+            elif message["role"] == "assistant":
+                formatted_history.append(AIMessage(content=message["content"]))
 
-            answer = result.get("result", "No answer found.")
+        try:
+            result = self.qa_chain.invoke({
+                "question": question,
+                "chat_history": formatted_history
+            })
+
+            # The key for the answer in this chain is 'answer'
+            answer = result.get("answer", "No answer found.")
             source_docs = result.get("source_documents", [])
 
             sources = []
