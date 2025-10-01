@@ -138,6 +138,7 @@ def clear_all_data():
         vector_store_manager.clear_collection()
         st.session_state.messages = []
         st.session_state.processed_docs = []
+        st.session_state.latest_sources = []
         # Invalidate cached resources to force re-initialization
         st.cache_resource.clear()
     st.success("All documents and chat history have been cleared.")
