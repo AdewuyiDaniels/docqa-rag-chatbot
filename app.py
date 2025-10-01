@@ -7,7 +7,11 @@ import time
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.config import UPLOAD_DIR, ALLOWED_EXTENSIONS
+# Import dependencies for the Composition Root
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+import chromadb
+
+from src.config import UPLOAD_DIR, ALLOWED_EXTENSIONS, VECTOR_STORE_DIR
 from src.document_processor import process_document
 from src.embeddings import VectorStoreManager
 from src.retriever import RAGEngine
@@ -22,20 +26,45 @@ if not os.getenv("OPENAI_API_KEY"):
     st.error("OPENAI_API_KEY environment variable not set. Please create a .env file.")
     st.stop()
 
+def load_css(file_path):
+    """Loads a CSS file and injects it into the Streamlit app."""
+    with open(file_path) as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
 st.set_page_config(page_title="Document Q&A Chatbot", layout="wide")
+
+# Apply custom CSS
+load_css("src/styles/style.css")
+
 st.title("📄 Document Q&A Chatbot with RAG")
 
-# --- STATE MANAGEMENT & CACHING ---
+# --- DEPENDENCY INJECTION & COMPOSITION ROOT ---
 
 @st.cache_resource
-def get_vector_store_manager():
-    """Initializes and returns the VectorStoreManager."""
-    return VectorStoreManager()
+def setup_application():
+    """
+    Initializes and wires up all application dependencies.
+    This function acts as the Composition Root for the application and is cached
+    by Streamlit to avoid re-creating objects on every interaction.
+    """
+    # 1. Initialize core components
+    embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
+    chroma_client = chromadb.PersistentClient(path=VECTOR_STORE_DIR)
+    llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
 
-@st.cache_resource
-def get_rag_engine(_vector_store_manager):
-    """Initializes and returns the RAGEngine."""
-    return RAGEngine(_vector_store_manager)
+    # 2. Compose the VectorStoreManager with its dependencies
+    vector_store_manager = VectorStoreManager(
+        client=chroma_client,
+        embedding_function=embedding_function
+    )
+
+    # 3. Compose the RAGEngine with its dependencies
+    retriever = vector_store_manager.get_retriever()
+    rag_engine = RAGEngine(retriever=retriever, llm=llm)
+
+    return vector_store_manager, rag_engine
+
+# --- STATE MANAGEMENT ---
 
 # Initialize session state variables
 if "messages" not in st.session_state:
@@ -43,11 +72,10 @@ if "messages" not in st.session_state:
 if "processed_docs" not in st.session_state:
     st.session_state.processed_docs = []
 
-# Get cached resources
-vector_store_manager = get_vector_store_manager()
-rag_engine = get_rag_engine(vector_store_manager)
+# Setup the application and get the main components
+vector_store_manager, rag_engine = setup_application()
 
-# Update processed documents list on start
+# Update processed documents list on every run to reflect changes
 st.session_state.processed_docs = vector_store_manager.get_processed_documents()
 
 
@@ -77,7 +105,6 @@ def handle_document_processing(uploaded_files):
         for uploaded_file in uploaded_files:
             start_time = time.time()
 
-            # Process each document
             chunks = process_document(uploaded_file, UPLOAD_DIR)
 
             if chunks:
@@ -92,6 +119,8 @@ def handle_document_processing(uploaded_files):
     st.success(f"Processed {len(uploaded_files)} documents, creating {total_chunks} chunks.")
     for name, duration in processing_times.items():
         st.info(f"'{name}' processed in {duration:.2f} seconds.")
+    # Force a rerun to update the processed docs list in the UI
+    st.rerun()
 
 def clear_all_data():
     """Clears the vector store, chat history, and processed documents list."""
@@ -99,9 +128,10 @@ def clear_all_data():
         vector_store_manager.clear_collection()
         st.session_state.messages = []
         st.session_state.processed_docs = []
-        # Invalidate cached resources to force re-initialization if needed
+        # Invalidate cached resources to force re-initialization
         st.cache_resource.clear()
     st.success("All documents and chat history have been cleared.")
+    st.rerun()
 
 
 # --- SIDEBAR UI ---
@@ -135,12 +165,10 @@ with st.sidebar:
 display_chat_history()
 
 if prompt := st.chat_input("Ask a question about your documents..."):
-    # Add user message to history
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Get assistant response
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             response = rag_engine.query(prompt)

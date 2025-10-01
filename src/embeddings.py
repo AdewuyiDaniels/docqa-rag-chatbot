@@ -3,13 +3,13 @@ Manages the vector store, including embedding generation, document addition,
 and retriever creation.
 """
 
-from typing import List, Dict, Optional
-from langchain_openai import OpenAIEmbeddings
+from typing import List, Dict
 from langchain_community.vectorstores import Chroma
 from langchain.schema.vectorstore import VectorStoreRetriever
-import chromadb
+from langchain_core.embeddings import Embeddings
+from chromadb.api.client import Client
 
-from src.config import VECTOR_STORE_DIR, TOP_K_RESULTS
+from src.config import TOP_K_RESULTS
 
 
 class VectorStoreManager:
@@ -17,16 +17,16 @@ class VectorStoreManager:
     Handles interactions with the ChromaDB vector store.
     """
 
-    def __init__(self, persist_directory: str = VECTOR_STORE_DIR):
+    def __init__(self, client: Client, embedding_function: Embeddings):
         """
         Initializes the VectorStoreManager.
 
         Args:
-            persist_directory: The directory where the vector store will be persisted.
+            client: An instance of a ChromaDB client.
+            embedding_function: An instance of an embedding function.
         """
-        self.persist_directory = persist_directory
-        self.embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
-        self.client = chromadb.PersistentClient(path=self.persist_directory)
+        self.client = client
+        self.embedding_function = embedding_function
         self.vector_store = Chroma(
             client=self.client,
             collection_name="documents",
@@ -51,7 +51,8 @@ class VectorStoreManager:
             texts=texts,
             metadatas=metadatas,
         )
-        self.vector_store.persist()
+        # Persisting is handled by the client, no need for an explicit call here
+        # self.vector_store.persist()
         print(f"Added {len(chunks)} chunks to collection '{collection_name}'.")
 
     def get_retriever(self, k: int = TOP_K_RESULTS) -> VectorStoreRetriever:
@@ -75,6 +76,7 @@ class VectorStoreManager:
         """
         try:
             self.client.delete_collection(name=collection_name)
+            # Re-initialize the vector store to a fresh state after deletion
             self.vector_store = Chroma(
                 client=self.client,
                 collection_name=collection_name,
@@ -94,9 +96,12 @@ class VectorStoreManager:
             A list of unique source document filenames.
         """
         try:
-            collection = self.client.get_collection(name=collection_name)
-            if not collection:
+            # Check if collection exists
+            collections = self.client.list_collections()
+            if not any(c.name == collection_name for c in collections):
                 return []
+
+            collection = self.client.get_collection(name=collection_name)
 
             metadatas = collection.get(include=["metadatas"])["metadatas"]
             if not metadatas:

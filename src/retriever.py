@@ -2,29 +2,29 @@
 The RAG engine that orchestrates the retrieval and generation process.
 """
 
-from typing import Dict, List
+from typing import Dict
 from langchain.chains import RetrievalQA
-from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain.schema.vectorstore import VectorStoreRetriever
-
-from src.embeddings import VectorStoreManager
+from langchain_core.language_models.chat_models import BaseChatModel
 
 
 class RAGEngine:
     """
     The main engine for handling RAG-based queries.
+    It is initialized with a retriever and a language model.
     """
 
-    def __init__(self, vector_store_manager: VectorStoreManager):
+    def __init__(self, retriever: VectorStoreRetriever, llm: BaseChatModel):
         """
         Initializes the RAGEngine.
 
         Args:
-            vector_store_manager: An instance of VectorStoreManager.
+            retriever: An initialized vector store retriever.
+            llm: An initialized language model.
         """
-        self.retriever = vector_store_manager.get_retriever()
-        self.llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
+        self.retriever = retriever
+        self.llm = llm
         self.qa_chain = self._create_qa_chain()
 
     def _create_qa_chain(self) -> RetrievalQA:

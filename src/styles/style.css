@@ -1,0 +1,101 @@
+/* General App Styling */
+body {
+    font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+}
+
+/* Main content area */
+.main .block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    padding-left: 5rem;
+    padding-right: 5rem;
+}
+
+/* Sidebar Styling */
+.st-emotion-cache-16txtl3 {
+    background-color: #0F172A; /* A deep blue-gray */
+    border-right: 1px solid #1E293B;
+}
+
+.st-emotion-cache-16txtl3 h1, .st-emotion-cache-16txtl3 h2, .st-emotion-cache-16txtl3 h3 {
+    color: #F8FAFC;
+}
+
+.st-emotion-cache-16txtl3 .st-emotion-cache-1v0mbdj { /* Sidebar headers */
+    color: #94A3B8;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+/* Custom button styling */
+.stButton>button {
+    border-radius: 0.5rem;
+    border: 1px solid #334155;
+    background-color: #1E293B;
+    color: #F1F5F9;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.stButton>button:hover {
+    background-color: #334155;
+    color: #FFFFFF;
+}
+
+.stButton>button:active {
+    background-color: #475569;
+}
+
+/* Primary button for danger zone */
+.stButton>button[kind="primary"] {
+    background-color: #991B1B;
+    border-color: #7F1D1D;
+    color: #F1F5F9;
+}
+.stButton>button[kind="primary"]:hover {
+    background-color: #B91C1C;
+    border-color: #991B1B;
+}
+
+
+/* Chat message styling */
+[data-testid="chat-message-container"] {
+    border-radius: 1rem;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1rem;
+    max-width: 85%;
+}
+
+/* User message */
+[data-testid="chat-message-container"]:has([data-testid="chat-avatar-user"]) {
+    background-color: #2563EB; /* A nice blue */
+    color: white;
+    float: right;
+    clear: both;
+}
+
+/* Assistant message */
+[data-testid="chat-message-container"]:has([data-testid="chat-avatar-assistant"]) {
+    background-color: #1E293B;
+    color: #E2E8F0;
+    float: left;
+    clear: both;
+}
+
+/* Expander for sources */
+.stExpander {
+    border-radius: 0.5rem;
+    border: 1px solid #334155 !important;
+    background-color: #0F172A;
+}
+
+.stExpander header {
+    font-size: 0.875rem;
+    color: #94A3B8;
+}
+
+/* Code block styling for sources */
+.stCodeBlock {
+    border-radius: 0.5rem;
+    background-color: #020617 !important;
+}
